@@ -11,7 +11,6 @@ const axios = require('axios');
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
-const { connect } = require('./includes/database/index');
 const fs = require('fs');
 const os = require('os');
 
