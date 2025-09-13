@@ -10,13 +10,13 @@ const TTS_API_URL = 'https://nexalo-api.vercel.app/api/tts2';
 // ==========================
 
 module.exports = {
-    name: "tts",
+    name: "say",
     version: "1.0.1",
     author: "Hridoy",
     description: "Convert text to speech and send the audio to the chat 🎙️",
     adminOnly: false,
     commandCategory: "Fun",
-    guide: "Use {pn}tts <text> to convert text to speech.\n" +
+    guide: "Use {pn}say <text> to convert text to speech.\n" +
            "Example: {pn}tts Hello, how are you?",
     cooldowns: 5,
     usePrefix: true,
