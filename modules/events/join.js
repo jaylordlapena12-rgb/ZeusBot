@@ -1,99 +1,82 @@
-const config = require('../../config/config.json');
-const axios = require('axios');
-const fs = require('fs-extra');
-const path = require('path'); 
-const chalk = require('chalk');
-const logger = require('../../includes/logger');
+module.exports.config = {
+  name: "joinNoti",
+  eventType: ["log:subscribe"],
+  version: "1.1.0",
+  credits: "Kim Joseph DG Bien (fixed by ChatGPT)",
+  description: "Join Notification with proper member count and names",
+  dependencies: {
+    "fs-extra": ""
+  }
+};
 
-const GRAPH_API_BASE = 'https://graph.facebook.com';
-const FB_HARDCODED_TOKEN = '6628568379|c1e620fa708a1d5696fb991c1bde5662';
-const WELCOME_API_URL = 'https://nexalo-api.vercel.app/api/welcome-card';
+module.exports.run = async function({ api, event }) {
+  const request = require("request");
+  const fs = global.nodemodule["fs-extra"];
 
-function getProfilePictureURL(userID, size = [512, 512]) {
-    const [height, width] = size;
-    return `${GRAPH_API_BASE}/${userID}/picture?width=${width}&height=${height}&access_token=${FB_HARDCODED_TOKEN}`;
-}
+  const { threadID, logMessageData } = event;
+  const addedParticipants = logMessageData.addedParticipants;
 
-const randomQuotes = [
-    "Welcome aboard, let's achieve greatness!",
-    "New adventures start with great friends.",
-    "Together, we can conquer the world!",
-    "Welcome to the team of dreamers.",
-    "A new journey begins with you.",
-    "Let’s make today a memorable one.",
-    "Excited to have you here, welcome!",
-    "We grow stronger with you here.",
-    "New beginnings, new hopes, welcome!",
-    "Welcome to the group of achievers."
-];
+  // If bot was added
+  if (addedParticipants.some(i => i.userFbId == api.getCurrentUserID())) {
+    api.changeNickname(`𝗕𝗢𝗧 ${global.config.BOTNAME} 【 ${global.config.PREFIX} 】`, threadID, api.getCurrentUserID());
+    return api.sendMessage(
+      `BOT CONNECTED!!\n\nThank you for using my BOT\nUse ${global.config.PREFIX}help to see other commands\n\nIf you notice an error in the bot, just report it using: ${global.config.PREFIX}callad or request a command!`,
+      threadID
+    );
+  }
 
-module.exports = {
-    name: "join",
-    async handle({ api, event }) {
-        if (event.logMessageType !== "log:subscribe") return;
+  try {
+    // Get thread info to know total members
+    const threadInfo = await api.getThreadInfo(threadID);
+    const threadName = threadInfo.threadName || "this group";
+    const totalMembers = threadInfo.participantIDs.length;
 
-        const threadID = event.threadID;
-        const addedUsers = event.logMessageData.addedParticipants || [];
+    let nameArray = [];
+    let mentions = [];
 
-        try {
-            const groupInfo = await new Promise((resolve, reject) => {
-                api.getThreadInfo(threadID, (err, info) => {
-                    if (err) reject(err);
-                    else resolve(info);
-                });
-            });
-            const groupName = groupInfo.threadName || "the group";
+    for (let newParticipant of addedParticipants) {
+      const userID = newParticipant.userFbId;
+      const userInfo = await api.getUserInfo(userID);
+      const userName = Object.values(userInfo)[0]?.name || "Friend";
 
-            for (const user of addedUsers) {
-                const userID = user.userFbId;
-                const userInfo = await new Promise((resolve, reject) => {
-                    api.getUserInfo([userID], (err, info) => {
-                        if (err) reject(err);
-                        else resolve(info);
-                    });
-                });
-                const userName = userInfo[userID]?.name || "Unknown User";
-
-                const profilePicUrl = getProfilePictureURL(userID);
-                const randomQuote = randomQuotes[Math.floor(Math.random() * randomQuotes.length)];
-                const apiUrl = `${WELCOME_API_URL}?image=${encodeURIComponent(profilePicUrl)}&username=${encodeURIComponent(userName)}&text=${encodeURIComponent(randomQuote)}`;
-
-                const tempDir = path.join(__dirname, '../../temp');
-                await fs.ensureDir(tempDir);
-                const fileName = `welcome_${Date.now()}_${userID}.png`;
-                const filePath = path.join(tempDir, fileName);
-
-                const response = await axios.get(apiUrl, { responseType: 'arraybuffer', timeout: 10000 });
-                await fs.writeFile(filePath, response.data);
-
-                const stats = await fs.stat(filePath);
-                if (stats.size === 0) throw new Error("Downloaded welcome image is empty");
-
-                const msg = {
-                    body: `${config.bot.botName}: 🎉 Welcome ${userName} to ${groupName}!`,
-                    attachment: fs.createReadStream(filePath)
-                };
-
-                await new Promise((resolve, reject) => {
-                    api.sendMessage(msg, threadID, (err) => {
-                        if (err) reject(err);
-                        else resolve();
-                    });
-                });
-
-                await fs.unlink(filePath);
-                logger.info(`Welcomed ${userName} (ID: ${userID}) to thread ${threadID}`);
-            }
-        } catch (error) {
-            logger.error(`Failed to welcome new user in thread ${threadID}: ${error.message}`);
-            api.sendMessage(`${config.bot.botName}: ⚠️ Failed to welcome new user.`, threadID);
-
-            const tempDir = path.join(__dirname, '../../temp');
-            const fileName = `welcome_${Date.now()}_${userID}.png`;
-            const filePath = path.join(tempDir, fileName);
-            if (await fs.exists(filePath)) {
-                await fs.unlink(filePath);
-            }
-        }
+      if (userID !== api.getCurrentUserID()) {
+        nameArray.push(userName);
+        mentions.push({ tag: userName, id: userID, fromIndex: 0 });
+      }
     }
+
+    // Format names nicely: "Alice", "Alice and Bob", "Alice, Bob and Charlie"
+    let formattedNames = "";
+    if (nameArray.length === 1) formattedNames = nameArray[0];
+    else if (nameArray.length === 2) formattedNames = `${nameArray[0]} and ${nameArray[1]}`;
+    else if (nameArray.length > 2) {
+      formattedNames = `${nameArray.slice(0, -1).join(", ")} and ${nameArray.slice(-1)}`;
+    }
+
+    const msg = `Hello ${formattedNames}!\nWelcome to ${threadName}!\nYou're the ${totalMembers}th member in this group, please enjoy!`;
+
+    // Random GIF for welcome
+    const links = [
+      "https://i.imgur.com/S2OBX1Q.gif",
+      "https://i.imgur.com/QBToMbX.gif",
+      "https://i.imgur.com/Yh5HVnI.gif",
+      "https://i.imgur.com/6xTTMU7.gif"
+    ];
+    const randomLink = links[Math.floor(Math.random() * links.length)];
+
+    const callback = () => {
+      api.sendMessage({
+        body: msg,
+        attachment: fs.createReadStream(__dirname + "/cache/welcome.gif"),
+        mentions
+      }, threadID, () => fs.unlinkSync(__dirname + "/cache/welcome.gif"));
+    };
+
+    request(encodeURI(randomLink))
+      .pipe(fs.createWriteStream(__dirname + "/cache/welcome.gif"))
+      .on("close", callback);
+
+  } catch (err) {
+    console.error("ERROR in joinNoti module:", err);
+  }
 };
