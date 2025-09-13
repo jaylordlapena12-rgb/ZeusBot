@@ -7,14 +7,14 @@ const GPT4_API_URL = 'https://nexalo-api.vercel.app/api/gpt4-v1';
 // ==========================
 
 module.exports = {
-    name: "gpt4",
+    name: "gpt",
     version: "1.0.0",
     author: "Hridoy",
     description: "Interact with GPT-4 to get responses to your queries 💬",
     adminOnly: false,
     commandCategory: "AI",
-    guide: "Use {pn}gpt4 <query> to ask a question to GPT-4.\n" +
-           "Example: {pn}gpt4 Hi",
+    guide: "Use {pn}gpt <query> to ask a question to GPT-4.\n" +
+           "Example: {pn}gpt Hi",
     cooldowns: 5,
     usePrefix: true,
 
